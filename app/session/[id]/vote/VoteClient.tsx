@@ -4,7 +4,7 @@ import VoteCard from "@/components/VoteCard";
 import { mapUrlFromPlace } from "@/lib/places";
 import { getMemberIdentity } from "@/lib/session-store";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { PlaceCandidate, RouletteAdditionRecord, SessionRecord, VoteRecord } from "@/types";
+import { PlaceCandidate, SessionRecord, VoteRecord } from "@/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,16 +18,13 @@ export default function VoteClient({ sessionId }: Props) {
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
   const [votes, setVotes] = useState<VoteRecord[]>([]);
-  const [additions, setAdditions] = useState<RouletteAdditionRecord[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const [myPlaceId, setMyPlaceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showRouletteModal, setShowRouletteModal] = useState(false);
-  const [rouletteTab, setRouletteTab] = useState<"pick" | "free">("pick");
-  const [pickPlaceId, setPickPlaceId] = useState<string | null>(null);
-  const [freeName, setFreeName] = useState("");
   const [resultPlace, setResultPlace] = useState<PlaceCandidate | null>(null);
 
   const identity = useMemo(() => getMemberIdentity(sessionId), [sessionId]);
+  const isHost = Boolean(session && userId && session.host_id === userId);
 
   const loadSession = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -63,17 +60,17 @@ export default function VoteClient({ sessionId }: Props) {
     setVotes((data ?? []) as VoteRecord[]);
   }, [sessionId]);
 
-  const loadAdditions = useCallback(async () => {
-    const supabase = getSupabaseBrowserClient();
-    const { data } = await supabase.from("roulette_additions").select("*").eq("session_id", sessionId);
-    setAdditions((data ?? []) as RouletteAdditionRecord[]);
-  }, [sessionId]);
-
   useEffect(() => {
     void loadSession();
     void loadVotes();
-    void loadAdditions();
-  }, [loadSession, loadVotes, loadAdditions]);
+  }, [loadSession, loadVotes]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -88,27 +85,10 @@ export default function VoteClient({ sessionId }: Props) {
       )
       .subscribe();
 
-    const addChannel = supabase
-      .channel(`roulette-add-${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "roulette_additions",
-          filter: `session_id=eq.${sessionId}`
-        },
-        () => {
-          void loadAdditions();
-        }
-      )
-      .subscribe();
-
     return () => {
       void supabase.removeChannel(votesChannel);
-      void supabase.removeChannel(addChannel);
     };
-  }, [sessionId, loadVotes, loadAdditions]);
+  }, [sessionId, loadVotes]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -199,62 +179,11 @@ export default function VoteClient({ sessionId }: Props) {
   };
 
   const goRoulette = async () => {
+    if (!isHost) return;
     const supabase = getSupabaseBrowserClient();
     await supabase.from("sessions").update({ status: "roulette" }).eq("id", sessionId);
     router.push(`/session/${sessionId}/roulette`);
   };
-
-  const submitRouletteAddition = async () => {
-    if (!identity) {
-      setError("参加情報がありません。");
-      return;
-    }
-    const supabase = getSupabaseBrowserClient();
-    if (rouletteTab === "pick") {
-      if (!pickPlaceId) {
-        setError("候補を選んでください");
-        return;
-      }
-      const place = candidates.find((c) => c.placeId === pickPlaceId);
-      if (!place) return;
-      const { error: e } = await supabase.from("roulette_additions").upsert(
-        {
-          session_id: sessionId,
-          member_id: identity.memberId,
-          place_name: place.name,
-          place_id: place.placeId
-        },
-        { onConflict: "session_id,member_id" }
-      );
-      if (e) setError(e.message);
-    } else {
-      if (!freeName.trim()) {
-        setError("店名を入力してください");
-        return;
-      }
-      const { error: e } = await supabase.from("roulette_additions").upsert(
-        {
-          session_id: sessionId,
-          member_id: identity.memberId,
-          place_name: freeName.trim(),
-          place_id: null
-        },
-        { onConflict: "session_id,member_id" }
-      );
-      if (e) setError(e.message);
-    }
-    await loadAdditions();
-    setShowRouletteModal(false);
-  };
-
-  const removeMyAddition = async () => {
-    if (!identity) return;
-    const supabase = getSupabaseBrowserClient();
-    await supabase.from("roulette_additions").delete().eq("session_id", sessionId).eq("member_id", identity.memberId);
-    await loadAdditions();
-  };
-
-  const myAddition = additions.find((a) => a.member_id === identity?.memberId);
 
   if (!session && !error) {
     return (
@@ -319,90 +248,16 @@ export default function VoteClient({ sessionId }: Props) {
         >
           結果を見る！
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setError(null);
-            setShowRouletteModal(true);
-          }}
-          className="rounded-xl4 border border-yellow py-3 font-bold text-yellow"
-        >
-          決まらないならスピン！
-        </button>
-      </div>
-
-      {myAddition ? (
-        <div className="mt-4 rounded-xl3 bg-white/10 px-3 py-2 text-sm">
-          <span className="text-slate-200">スピン追加: </span>
-          <span className="font-bold">{myAddition.place_name}</span>
-          <button type="button" className="ml-2 text-pink underline" onClick={() => void removeMyAddition()}>
-            削除
+        {isHost ? (
+          <button
+            type="button"
+            onClick={() => void goRoulette()}
+            className="rounded-xl4 border border-yellow py-3 font-bold text-yellow"
+          >
+            決まらないならスピン！
           </button>
-        </div>
-      ) : null}
-
-      {showRouletteModal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 pb-6 pt-12">
-          <div className="max-h-[85vh] w-full max-w-[390px] overflow-y-auto rounded-xl4 bg-navy p-4 shadow-pop">
-            <div className="mb-3 flex gap-2">
-              <button
-                type="button"
-                className={`flex-1 rounded-xl2 py-2 font-bold ${
-                  rouletteTab === "pick" ? "bg-teal text-navy" : "bg-white/10"
-                }`}
-                onClick={() => setRouletteTab("pick")}
-              >
-                候補から選ぶ
-              </button>
-              <button
-                type="button"
-                className={`flex-1 rounded-xl2 py-2 font-bold ${
-                  rouletteTab === "free" ? "bg-teal text-navy" : "bg-white/10"
-                }`}
-                onClick={() => setRouletteTab("free")}
-              >
-                自由に入力
-              </button>
-            </div>
-
-            {rouletteTab === "pick" ? (
-              <ul className="mb-4 space-y-2">
-                {candidates.map((c) => (
-                  <li key={c.placeId}>
-                    <button
-                      type="button"
-                      onClick={() => setPickPlaceId(c.placeId)}
-                      className={`w-full rounded-xl2 px-3 py-2 text-left ${
-                        pickPlaceId === c.placeId ? "bg-yellow text-navy" : "bg-white/10"
-                      }`}
-                    >
-                      {c.emoji} {c.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <input
-                value={freeName}
-                onChange={(e) => setFreeName(e.target.value)}
-                placeholder="お店の名前"
-                className="mb-4 w-full rounded-xl2 border border-white/10 bg-navy/60 px-3 py-3 text-white outline-none"
-              />
-            )}
-
-            <button
-              type="button"
-              onClick={() => void submitRouletteAddition()}
-              className="mb-2 w-full rounded-xl4 bg-orange py-3 font-extrabold text-white"
-            >
-              このお店をスピンに追加！
-            </button>
-            <button type="button" onClick={() => setShowRouletteModal(false)} className="w-full py-2 text-sm text-slate-300">
-              閉じる
-            </button>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {resultPlace ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -418,13 +273,15 @@ export default function VoteClient({ sessionId }: Props) {
             >
               Googleマップで開く
             </a>
-            <button
-              type="button"
-              onClick={() => void goRoulette()}
-              className="mt-3 w-full rounded-xl4 border border-white/20 py-3 font-bold text-white"
-            >
-              やっぱりスピンする
-            </button>
+            {isHost ? (
+              <button
+                type="button"
+                onClick={() => void goRoulette()}
+                className="mt-3 w-full rounded-xl4 border border-white/20 py-3 font-bold text-white"
+              >
+                やっぱりスピンする
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setResultPlace(null)}

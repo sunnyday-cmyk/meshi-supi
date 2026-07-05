@@ -2,19 +2,14 @@
 
 import RouletteWheel from "@/components/RouletteWheel";
 import { mapUrlFromPlace } from "@/lib/places";
+import { buildWheelItemsFromVotes, type WheelItem } from "@/lib/roulette-items";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { PlaceCandidate, RouletteAdditionRecord, SessionRecord } from "@/types";
+import { MemberRecord, PlaceCandidate, SessionRecord, VoteRecord } from "@/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const wheelColors = ["#FFE135", "#FF6B35", "#FF3D7F", "#00C9A7", "#7B2FBE"];
-
-type WheelItem = {
-  key: string;
-  label: string;
-  place: PlaceCandidate;
-};
 
 type Props = {
   sessionId: string;
@@ -24,6 +19,7 @@ export default function RouletteClient({ sessionId }: Props) {
   const router = useRouter();
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [items, setItems] = useState<WheelItem[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const [spinKey, setSpinKey] = useState(0);
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -33,6 +29,8 @@ export default function RouletteClient({ sessionId }: Props) {
   const targetIndexRef = useRef<number | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+
+  const isHost = Boolean(session && userId && session.host_id === userId);
 
   const loadAll = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -62,35 +60,47 @@ export default function RouletteClient({ sessionId }: Props) {
       created_at: row.created_at
     });
 
-    const { data: adds } = await supabase.from("roulette_additions").select("*").eq("session_id", sessionId);
+    const [{ data: votes }, { data: members }] = await Promise.all([
+      supabase.from("votes").select("*").eq("session_id", sessionId),
+      supabase.from("members").select("*").eq("session_id", sessionId)
+    ]);
 
-    const base = (row.candidates ?? []) as PlaceCandidate[];
-    const merged: WheelItem[] = base.map((p) => ({
-      key: p.placeId,
-      label: p.name,
-      place: p
-    }));
-
-    (adds as RouletteAdditionRecord[] | null)?.forEach((a) => {
-      merged.push({
-        key: `add-${a.id}`,
-        label: a.place_name,
-        place: {
-          placeId: a.place_id ?? "",
-          name: a.place_name,
-          emoji: "✨",
-          rating: undefined,
-          priceLevel: undefined
-        }
-      });
-    });
-
-    setItems(merged);
+    const wheelItems = buildWheelItemsFromVotes(
+      (votes ?? []) as VoteRecord[],
+      (members ?? []) as MemberRecord[],
+      (row.candidates ?? []) as PlaceCandidate[]
+    );
+    setItems(wheelItems);
   }, [sessionId]);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`roulette-votes-${sessionId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes", filter: `session_id=eq.${sessionId}` },
+        () => {
+          void loadAll();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [sessionId, loadAll]);
 
   useEffect(() => {
     if (!session) return;
@@ -105,7 +115,7 @@ export default function RouletteClient({ sessionId }: Props) {
   const labels = useMemo(() => items.map((i) => i.label), [items]);
 
   const startSpin = () => {
-    if (!items.length || spinning) return;
+    if (!isHost || !items.length || spinning) return;
     setError(null);
     setResult(null);
     setConfetti(false);
@@ -152,6 +162,18 @@ export default function RouletteClient({ sessionId }: Props) {
     );
   }
 
+  if (!items.length) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[390px] flex-col items-center justify-center gap-4 px-4 text-center">
+        <h1 className="title-font text-3xl text-orange">ルーレット</h1>
+        <p className="text-slate-200">まだ投票がありません。投票してからスピンしましょう。</p>
+        <Link href={`/session/${sessionId}/vote`} className="rounded-xl4 bg-yellow px-6 py-3 font-bold text-navy">
+          投票画面へ
+        </Link>
+      </main>
+    );
+  }
+
   return (
     <main className="relative mx-auto min-h-screen w-full max-w-[390px] overflow-hidden px-4 pb-28 pt-6">
       {confetti ? (
@@ -171,7 +193,9 @@ export default function RouletteClient({ sessionId }: Props) {
       ) : null}
 
       <h1 className="title-font mb-2 text-center text-4xl text-orange">ルーレット</h1>
-      <p className="mb-6 text-center text-sm text-slate-200">タップしてスピン！</p>
+      <p className="mb-6 text-center text-sm text-slate-200">
+        {isHost ? "タップしてスピン！" : "ホストがスピンするのを待っています…"}
+      </p>
 
       <RouletteWheel
         labels={labels}
@@ -181,14 +205,18 @@ export default function RouletteClient({ sessionId }: Props) {
         onSpinComplete={onSpinDone}
       />
 
-      <button
-        type="button"
-        disabled={spinning || !items.length}
-        onClick={startSpin}
-        className="mx-auto mt-8 flex h-24 w-24 animate-pulse items-center justify-center rounded-full bg-gradient-to-br from-pink to-purple text-lg font-black text-white shadow-pop disabled:opacity-50"
-      >
-        {spinning ? "..." : "SPIN"}
-      </button>
+      {isHost ? (
+        <button
+          type="button"
+          disabled={spinning || !items.length}
+          onClick={startSpin}
+          className="mx-auto mt-8 flex h-24 w-24 animate-pulse items-center justify-center rounded-full bg-gradient-to-br from-pink to-purple text-lg font-black text-white shadow-pop disabled:opacity-50"
+        >
+          {spinning ? "..." : "SPIN"}
+        </button>
+      ) : (
+        <p className="mt-8 text-center text-sm text-teal">みんなの投票したお店でルーレット中</p>
+      )}
 
       {result ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -207,16 +235,18 @@ export default function RouletteClient({ sessionId }: Props) {
             >
               Googleマップで開く
             </a>
-            <button
-              type="button"
-              onClick={() => {
-                setResult(null);
-                startSpin();
-              }}
-              className="mt-3 w-full rounded-xl4 border border-white/20 py-3 font-bold text-white"
-            >
-              もう一回スピン
-            </button>
+            {isHost ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(null);
+                  startSpin();
+                }}
+                className="mt-3 w-full rounded-xl4 border border-white/20 py-3 font-bold text-white"
+              >
+                もう一回スピン
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

@@ -48,3 +48,70 @@ npm run dev
 | 4 | ホストが投票をスタート | 投票画面へ遷移 |
 | 5 | 各員が店をタップ | 票がリアルタイム反映 |
 | 6 | 結果を見る / ルーレット | 店が決定 |
+
+## Vercel へデプロイ
+
+### 1. GitHub に push（未実施の場合）
+
+```bash
+cd "/Users/toranosuke/アプリ２/meshispin"
+git push -u origin main
+```
+
+リポジトリ: `https://github.com/jqz8zvrbvk-eng/meshispin`
+
+### 2. Vercel でプロジェクトをインポート
+
+1. [vercel.com](https://vercel.com) にログイン
+2. **Add New… > Project**
+3. GitHub の `meshispin` を選択して **Import**
+4. Framework Preset: **Next.js**（自動検出）
+5. Root Directory: そのまま（リポジトリ直下）
+
+### 3. 環境変数を設定（Deploy 前）
+
+Vercel の **Environment Variables** に以下を追加（Production / Preview / Development すべてにチェック推奨）:
+
+| 名前 | 値 |
+|------|-----|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase の Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase の anon key |
+| `NEXT_PUBLIC_GOOGLE_PLACES_API_KEY` | Google Places API キー |
+
+`.env.local` の値をそのままコピーして OK です。
+
+### 4. Deploy
+
+**Deploy** を押す。完了後 `https://xxxx.vercel.app` のような URL が発行されます。
+
+### 5. 本番 URL を外部サービスに登録（必須）
+
+デプロイ後の URL を `https://あなたのドメイン.vercel.app` とします。
+
+**Supabase**（Authentication > URL Configuration）
+
+- Site URL: `https://あなたのドメイン.vercel.app`
+- Redirect URLs に追加:
+  - `https://あなたのドメイン.vercel.app/auth/callback`
+
+**Google Cloud Console**（OAuth クライアント）
+
+- 承認済みの JavaScript 生成元: `https://あなたのドメイン.vercel.app`
+- 承認済みのリダイレクト URI: Supabase が案内する Google 用 URI（Supabase Dashboard の Google プロバイダ画面を確認）
+
+### 6. 動作確認
+
+1. 本番 URL の `/` で店舗が表示されるか
+2. グループ作成 → Google ログイン → 招待 → 投票
+
+ローカル用の `http://localhost:3000` は Redirect URLs に残しておくと、開発も続けられます。
+
+### CLI でデプロイする場合（任意）
+
+```bash
+cd "/Users/toranosuke/アプリ２/meshispin"
+npx vercel login
+npx vercel --prod
+```
+
+初回は対話形式でプロジェクト名などを聞かれます。環境変数は Vercel Dashboard から設定してください。
