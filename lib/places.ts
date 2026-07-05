@@ -241,3 +241,27 @@ export function mapUrlFromPlace(place: PlaceCandidate): string {
   }
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`;
 }
+
+type PlaceDetailsResponse = {
+  photos?: Array<{ name?: string }>;
+  error?: { message?: string };
+};
+
+export async function fetchPlacePhotoName(placeId: string): Promise<string | undefined> {
+  if (!placeId) return undefined;
+
+  const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+    headers: {
+      "X-Goog-Api-Key": getApiKey(),
+      "X-Goog-FieldMask": "photos"
+    },
+    cache: "no-store"
+  });
+
+  const json = (await response.json()) as PlaceDetailsResponse;
+  if (!response.ok) {
+    throw new Error(json.error?.message ?? `Place Details エラー (HTTP ${response.status})`);
+  }
+
+  return json.photos?.[0]?.name;
+}

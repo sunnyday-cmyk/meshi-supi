@@ -11,10 +11,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Google Places APIキーが未設定です" }, { status: 500 });
   }
 
-  const mediaUrl = `https://places.googleapis.com/v1/${name}/media?maxHeightPx=400&maxWidthPx=800&key=${apiKey}`;
+  const mediaUrl = `https://places.googleapis.com/v1/${name}/media?maxHeightPx=400&maxWidthPx=800`;
 
-  const response = await fetch(mediaUrl, { cache: "no-store" });
+  const response = await fetch(mediaUrl, {
+    cache: "no-store",
+    redirect: "follow",
+    headers: {
+      "X-Goog-Api-Key": apiKey
+    }
+  });
+
   if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    console.error("[places/photo] fetch failed", response.status, detail.slice(0, 200));
     return NextResponse.json({ error: "写真の取得に失敗しました" }, { status: response.status });
   }
 

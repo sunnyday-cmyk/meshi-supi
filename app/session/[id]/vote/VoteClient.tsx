@@ -13,6 +13,36 @@ type Props = {
   sessionId: string;
 };
 
+async function enrichWithMissingPhotos(places: PlaceCandidate[]): Promise<PlaceCandidate[]> {
+  const needsPhoto = places.filter((p) => !p.photoName && p.placeId);
+  if (!needsPhoto.length) return places;
+
+  const updates = await Promise.all(
+    needsPhoto.map(async (place) => {
+      try {
+        const res = await fetch(`/api/places/details?placeId=${encodeURIComponent(place.placeId)}`);
+        if (!res.ok) return null;
+        const data = (await res.json()) as { photoName?: string | null };
+        if (!data.photoName) return null;
+        return { placeId: place.placeId, photoName: data.photoName };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const photoById = new Map(
+    updates
+      .filter((u): u is { placeId: string; photoName: string } => u !== null)
+      .map((u) => [u.placeId, u.photoName])
+  );
+  if (!photoById.size) return places;
+
+  return places.map((place) =>
+    !place.photoName && photoById.has(place.placeId) ? { ...place, photoName: photoById.get(place.placeId) } : place
+  );
+}
+
 export default function VoteClient({ sessionId }: Props) {
   const router = useRouter();
   const [session, setSession] = useState<SessionRecord | null>(null);
@@ -53,16 +83,24 @@ export default function VoteClient({ sessionId }: Props) {
     });
 
     const raw = row.candidates ?? [];
+
+    const applyCandidates = async (list: PlaceCandidate[]) => {
+      const withPhotos = await enrichWithMissingPhotos(list);
+      setCandidates(withPhotos);
+    };
+
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setCandidates(enrichPlacesWithDistance(raw, pos.coords.latitude, pos.coords.longitude));
+          void applyCandidates(enrichPlacesWithDistance(raw, pos.coords.latitude, pos.coords.longitude));
         },
-        () => setCandidates(raw),
+        () => {
+          void applyCandidates(raw);
+        },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setCandidates(raw);
+      void applyCandidates(raw);
     }
   }, [sessionId]);
 

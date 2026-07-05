@@ -10,7 +10,7 @@
    - Site URL: `http://localhost:3000`
    - Redirect URLs: `http://localhost:3000/auth/callback`
 6. Database > Replication（Realtime）で `members` / `votes` / `roulette_additions` を有効化
-7. Google Cloud で **Places API (New)** を有効化し、APIキーを発行
+7. Google Cloud で **Places API (New)** を有効化し、APIキーを発行（店舗検索・写真表示の両方に使用）
 8. [`.env.local`](.env.local) に以下を設定
 
 ```bash

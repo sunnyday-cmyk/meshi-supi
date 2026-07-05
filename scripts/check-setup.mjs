@@ -98,13 +98,15 @@ async function checkPlaces(apiKey) {
     return false;
   }
 
+  let placesOk = true;
+
   try {
     const res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.photos"
       },
       body: JSON.stringify({
         includedTypes: ["restaurant"],
@@ -124,11 +126,40 @@ async function checkPlaces(apiKey) {
       return false;
     }
     ok("Places API (New)", `${json.places?.length ?? 0} 件（東京駅付近）`);
-    return true;
+
+    const photoName = json.places?.find((p) => p.photos?.[0]?.name)?.photos?.[0]?.name;
+    if (!photoName) {
+      fail("店舗写真メタデータ", "photos が返りませんでした（FieldMask を確認）");
+      placesOk = false;
+    } else {
+      ok("店舗写真メタデータ", photoName.slice(0, 40) + "...");
+      try {
+        const mediaRes = await fetch(
+          `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=200&maxWidthPx=400`,
+          {
+            redirect: "follow",
+            headers: { "X-Goog-Api-Key": apiKey },
+            signal: AbortSignal.timeout(15000)
+          }
+        );
+        if (mediaRes.ok) {
+          ok("Place Photos Media", `HTTP ${mediaRes.status}`);
+        } else {
+          const body = await mediaRes.text();
+          fail("Place Photos Media", `HTTP ${mediaRes.status} ${body.slice(0, 80)}`);
+          placesOk = false;
+        }
+      } catch (e) {
+        fail("Place Photos Media", e.message);
+        placesOk = false;
+      }
+    }
   } catch (e) {
     fail("Places API (New)", e.message);
     return false;
   }
+
+  return placesOk;
 }
 
 function printAuthReminder() {

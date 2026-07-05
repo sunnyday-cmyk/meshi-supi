@@ -1,9 +1,8 @@
 "use client";
 
-import { placePhotoProxyUrl, priceLabel } from "@/lib/places";
+import PlacePhoto from "@/components/PlacePhoto";
+import { priceLabel } from "@/lib/places";
 import { PlaceCandidate } from "@/types";
-import Image from "next/image";
-import { useState } from "react";
 
 type Props = {
   place: PlaceCandidate;
@@ -15,8 +14,6 @@ type Props = {
 
 export default function VoteCard({ place, selected, votes, maxVotes, onSelect }: Props) {
   const ratio = maxVotes > 0 ? Math.round((votes / maxVotes) * 100) : 0;
-  const photoUrl = placePhotoProxyUrl(place.photoName);
-  const [photoFailed, setPhotoFailed] = useState(false);
 
   return (
     <button
@@ -26,21 +23,12 @@ export default function VoteCard({ place, selected, votes, maxVotes, onSelect }:
         selected ? "border-yellow bg-yellow/10" : "border-white/10 bg-white/5"
       }`}
     >
-      {photoUrl && !photoFailed ? (
-        <div className="relative h-36 w-full bg-navy/70">
-          <Image
-            src={photoUrl}
-            alt={place.name}
-            fill
-            className="object-cover"
-            sizes="390px"
-            unoptimized
-            onError={() => setPhotoFailed(true)}
-          />
-        </div>
-      ) : (
-        <div className="flex h-24 items-center justify-center bg-navy/70 text-5xl">{place.emoji ?? "🍽️"}</div>
-      )}
+      <PlacePhoto
+        place={place}
+        className="relative h-36 w-full bg-navy/70"
+        emojiClassName="text-5xl"
+        sizes="390px"
+      />
 
       <div className="p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
