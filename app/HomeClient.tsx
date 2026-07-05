@@ -4,7 +4,7 @@ import GenreChips from "@/components/GenreChips";
 import ShopCard from "@/components/ShopCard";
 import { PlaceCandidate } from "@/types";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 const logoChars = [
   { char: "M", color: "text-yellow" },
@@ -18,7 +18,7 @@ const logoChars = [
   { char: "n", color: "text-teal" }
 ];
 
-export default function HomeClient() {
+export default function HomeClient({ intro }: { intro?: ReactNode }) {
   const [activeGenre, setActiveGenre] = useState("すべて");
   const [places, setPlaces] = useState<PlaceCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +81,8 @@ export default function HomeClient() {
           近くの候補をサクッと見て、みんなで楽しく決めよう！
         </p>
       </header>
+
+      {intro}
 
       <section>
         <GenreChips activeGenre={activeGenre} onChange={setActiveGenre} />

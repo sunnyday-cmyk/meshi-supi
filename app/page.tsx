@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import HomeIntro from "@/components/HomeIntro";
 import HomeClient from "./HomeClient";
 
 export default function HomePage() {
@@ -10,7 +11,7 @@ export default function HomePage() {
         </main>
       }
     >
-      <HomeClient />
+      <HomeClient intro={<HomeIntro />} />
     </Suspense>
   );
 }
