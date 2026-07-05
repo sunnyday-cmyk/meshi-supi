@@ -67,15 +67,10 @@ export default function InviteClient({ sessionId }: Props) {
       created_at: string;
     };
 
-    const conditions: SessionConditions = {
-      ...row.conditions,
-      voteSeconds: row.conditions?.voteSeconds ?? 120
-    };
-
     setSession({
       id: row.id,
       host_id: row.host_id,
-      conditions,
+      conditions: row.conditions,
       candidates: row.candidates ?? [],
       status: row.status,
       vote_ends_at: row.vote_ends_at,
@@ -156,11 +151,9 @@ export default function InviteClient({ sessionId }: Props) {
   const startVoting = async () => {
     if (!session) return;
     const supabase = getSupabaseBrowserClient();
-    const seconds = session.conditions.voteSeconds ?? 120;
-    const voteEnds = new Date(Date.now() + seconds * 1000).toISOString();
     const { error: updateError } = await supabase
       .from("sessions")
-      .update({ status: "voting", vote_ends_at: voteEnds })
+      .update({ status: "voting" })
       .eq("id", sessionId);
     if (updateError) {
       setError(updateError.message);

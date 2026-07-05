@@ -53,7 +53,7 @@ export default function RouletteClient({ sessionId }: Props) {
     setSession({
       id: row.id,
       host_id: row.host_id,
-      conditions: { ...row.conditions, voteSeconds: row.conditions?.voteSeconds ?? 120 },
+      conditions: row.conditions,
       candidates: row.candidates ?? [],
       status: row.status,
       vote_ends_at: row.vote_ends_at,
@@ -224,6 +224,7 @@ export default function RouletteClient({ sessionId }: Props) {
             <p className="text-5xl">{result.emoji ?? "🎉"}</p>
             <h2 className="title-font mt-2 text-3xl text-yellow">{result.name}</h2>
             <p className="mt-2 text-sm text-slate-200">
+              {result.distanceText ? `約 ${result.distanceText} ・ ` : ""}
               評価 {result.rating?.toFixed(1) ?? "-"} ・ 価格帯{" "}
               {typeof result.priceLevel === "number" ? "¥".repeat(result.priceLevel) : "-"}
             </p>

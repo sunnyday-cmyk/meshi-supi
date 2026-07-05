@@ -7,8 +7,6 @@ export type SessionConditions = {
   transport: string;
   travelMinutes: number;
   extras: string[];
-  /** 投票カウントダウン秒（ホスト開始時に vote_ends_at へ反映） */
-  voteSeconds: number;
 };
 
 export type PlaceCandidate = {
@@ -21,6 +19,7 @@ export type PlaceCandidate = {
   lat?: number;
   lng?: number;
   vicinity?: string;
+  photoName?: string;
 };
 
 export type SessionRecord = {

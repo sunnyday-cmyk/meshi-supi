@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const stepLabels = ["条件入力", "候補取得", "招待", "投票開始"];
-const genreOptions = ["ラーメン", "寿司", "バーガー", "ピザ", "居酒屋", "カレー", "焼肉", "イタリアン"];
+const genreOptions = ["すべて", "ラーメン", "寿司", "バーガー", "ピザ", "居酒屋", "カレー", "焼肉", "イタリアン"];
 const transportOptions = [
   { id: "walk", label: "徒歩🚶" },
   { id: "bike", label: "自転車🚲" },
@@ -32,13 +32,12 @@ type PendingForm = SessionConditions;
 export default function NewSessionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [genres, setGenres] = useState<string[]>(["ラーメン", "寿司"]);
+  const [genres, setGenres] = useState<string[]>(["すべて"]);
   const [budget, setBudget] = useState(2500);
   const [people, setPeople] = useState(6);
   const [transport, setTransport] = useState("walk");
   const [travelMinutes, setTravelMinutes] = useState(20);
   const [extras, setExtras] = useState<string[]>(["禁煙"]);
-  const [voteSeconds, setVoteSeconds] = useState(120);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resumeAttempted = useRef(false);
@@ -50,14 +49,17 @@ export default function NewSessionForm() {
       people,
       transport,
       travelMinutes,
-      extras,
-      voteSeconds
+      extras
     }),
-    [genres, budget, people, transport, travelMinutes, extras, voteSeconds]
+    [genres, budget, people, transport, travelMinutes, extras]
   );
 
   const toggleGenre = (g: string) => {
-    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+    setGenres((prev) => {
+      if (g === "すべて") return ["すべて"];
+      const withoutAll = prev.filter((x) => x !== "すべて");
+      return withoutAll.includes(g) ? withoutAll.filter((x) => x !== g) : [...withoutAll, g];
+    });
   };
 
   const toggleExtra = (e: string) => {
@@ -131,7 +133,7 @@ export default function NewSessionForm() {
         throw new Error("近くにお店が見つかりませんでした。条件を変えて試してください。");
       }
 
-      const candidates = places.slice(0, 4);
+      const candidates = places;
       const hostName =
         (user.user_metadata?.full_name as string | undefined) ??
         (user.user_metadata?.name as string | undefined) ??
@@ -198,13 +200,12 @@ export default function NewSessionForm() {
     try {
       const pending = JSON.parse(raw) as Partial<PendingForm>;
       restored = {
-        genres: pending.genres?.length ? pending.genres : ["ラーメン"],
+        genres: pending.genres?.length ? pending.genres : ["すべて"],
         budget: pending.budget ?? 2500,
         people: pending.people ?? 6,
         transport: pending.transport ?? "walk",
         travelMinutes: pending.travelMinutes ?? 20,
-        extras: pending.extras ?? [],
-        voteSeconds: pending.voteSeconds ?? 120
+        extras: pending.extras ?? []
       };
       setGenres(restored.genres);
       setBudget(restored.budget);
@@ -212,7 +213,6 @@ export default function NewSessionForm() {
       setTransport(restored.transport);
       setTravelMinutes(restored.travelMinutes);
       setExtras(restored.extras);
-      setVoteSeconds(restored.voteSeconds);
     } catch {
       return;
     }
@@ -323,20 +323,6 @@ export default function NewSessionForm() {
           value={travelMinutes}
           onChange={(e) => setTravelMinutes(Number(e.target.value))}
           className="w-full accent-purple"
-        />
-      </section>
-
-      <section className="mb-4 rounded-xl4 bg-white/10 p-4">
-        <h2 className="mb-3 text-lg font-extrabold text-yellow">投票タイマー（秒）</h2>
-        <p className="mb-2 text-sm text-slate-200">{voteSeconds}秒</p>
-        <input
-          type="range"
-          min={60}
-          max={300}
-          step={30}
-          value={voteSeconds}
-          onChange={(e) => setVoteSeconds(Number(e.target.value))}
-          className="w-full accent-yellow"
         />
       </section>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import VoteCard from "@/components/VoteCard";
-import { mapUrlFromPlace } from "@/lib/places";
+import { enrichPlacesWithDistance, mapUrlFromPlace } from "@/lib/places";
 import { getMemberIdentity } from "@/lib/session-store";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PlaceCandidate, SessionRecord, VoteRecord } from "@/types";
@@ -45,13 +45,25 @@ export default function VoteClient({ sessionId }: Props) {
     setSession({
       id: row.id,
       host_id: row.host_id,
-      conditions: { ...row.conditions, voteSeconds: row.conditions?.voteSeconds ?? 120 },
+      conditions: row.conditions,
       candidates: row.candidates ?? [],
       status: row.status,
       vote_ends_at: row.vote_ends_at,
       created_at: row.created_at
     });
-    setCandidates((row.candidates ?? []).slice(0, 4));
+
+    const raw = row.candidates ?? [];
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCandidates(enrichPlacesWithDistance(raw, pos.coords.latitude, pos.coords.longitude));
+        },
+        () => setCandidates(raw),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setCandidates(raw);
+    }
   }, [sessionId]);
 
   const loadVotes = useCallback(async () => {
@@ -129,12 +141,6 @@ export default function VoteClient({ sessionId }: Props) {
     return m;
   }, [tallies]);
 
-  const secondsLeft = useMemo(() => {
-    if (!session?.vote_ends_at) return null;
-    const end = new Date(session.vote_ends_at).getTime();
-    return Math.max(0, Math.floor((end - Date.now()) / 1000));
-  }, [session?.vote_ends_at]);
-
   const castVote = async (placeId: string) => {
     if (!identity) {
       setError("招待画面から参加してください。");
@@ -208,19 +214,12 @@ export default function VoteClient({ sessionId }: Props) {
     <main className="relative mx-auto min-h-screen w-full max-w-[390px] px-4 pb-28 pt-6">
       <div className="pointer-events-none absolute -left-10 top-24 h-40 w-40 rounded-full bg-pink/20 blur-2xl" />
 
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="title-font text-3xl text-yellow">投票タイム！</h1>
-          <p className="text-sm text-slate-200">タップで投票（変更OK）</p>
-        </div>
-        <div className="rounded-xl3 border border-pink/40 bg-pink/15 px-3 py-2 text-right">
-          <p className="text-xs text-pink">残り</p>
-          <p className="text-xl font-black text-pink">
-            {secondsLeft === null
-              ? "--:--"
-              : `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`}
-          </p>
-        </div>
+      <header className="mb-4">
+        <h1 className="title-font text-3xl text-yellow">投票タイム！</h1>
+        <p className="text-sm text-slate-200">
+          タップで投票（変更OK）
+          {candidates.length > 0 ? ` ・ 全${candidates.length}店舗` : ""}
+        </p>
       </header>
 
       {error ? (
@@ -264,7 +263,11 @@ export default function VoteClient({ sessionId }: Props) {
           <div className="w-full max-w-[360px] rounded-xl4 bg-white/10 p-6 text-center backdrop-blur">
             <p className="text-5xl">{resultPlace.emoji}</p>
             <h2 className="title-font mt-2 text-3xl text-yellow">{resultPlace.name}</h2>
-            <p className="mt-2 text-sm text-slate-200">今夜の決定！おめでとう！</p>
+            <p className="mt-2 text-sm text-slate-200">
+              {resultPlace.distanceText ? `約 ${resultPlace.distanceText}` : ""}
+              {resultPlace.distanceText ? " ・ " : ""}
+              今夜の決定！おめでとう！
+            </p>
             <a
               href={mapUrlFromPlace(resultPlace)}
               target="_blank"
