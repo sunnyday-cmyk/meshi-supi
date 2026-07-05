@@ -1,3 +1,4 @@
+import { inferGenresFromPlaceName } from "@/lib/genres";
 import { PlaceCandidate, SessionConditions } from "@/types";
 
 const FIELD_MASK =
@@ -184,6 +185,29 @@ export function maxPriceLevelForBudget(budget: number): number {
   return 4;
 }
 
+export function mergePlacesWithGenres(
+  batches: Array<{ genre: string | null; places: PlaceCandidate[] }>
+): PlaceCandidate[] {
+  const map = new Map<string, PlaceCandidate>();
+
+  for (const { genre, places } of batches) {
+    for (const place of places) {
+      if (!place.placeId) continue;
+      const existing = map.get(place.placeId);
+      if (existing) {
+        if (genre && !existing.genres?.includes(genre)) {
+          existing.genres = [...(existing.genres ?? []), genre];
+        }
+      } else {
+        const genres = genre ? [genre] : inferGenresFromPlaceName(place.name);
+        map.set(place.placeId, { ...place, genres });
+      }
+    }
+  }
+
+  return [...map.values()];
+}
+
 export function dedupePlacesById(places: PlaceCandidate[]): PlaceCandidate[] {
   const seen = new Set<string>();
   const result: PlaceCandidate[] = [];
@@ -228,10 +252,13 @@ export async function searchPlacesForConditions(params: {
   const keywords = genres.length ? genres : [""];
 
   const batches = await Promise.all(
-    keywords.map((keyword) => searchNearbyPlaces({ lat, lng, radius, keyword: keyword || undefined }))
+    keywords.map(async (keyword) => ({
+      genre: keyword || null,
+      places: await searchNearbyPlaces({ lat, lng, radius, keyword: keyword || undefined })
+    }))
   );
 
-  const merged = dedupePlacesById(batches.flat());
+  const merged = mergePlacesWithGenres(batches);
   return filterPlacesByConditions(merged, conditions, lat, lng);
 }
 

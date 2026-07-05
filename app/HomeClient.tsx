@@ -1,12 +1,10 @@
 "use client";
 
+import GenreChips from "@/components/GenreChips";
 import ShopCard from "@/components/ShopCard";
 import { PlaceCandidate } from "@/types";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-const genres = ["すべて", "ラーメン", "寿司", "バーガー", "ピザ", "居酒屋"];
-const navItems = ["ホーム", "さがす", "スピン", "お気に入り", "マイページ"];
 
 const logoChars = [
   { char: "M", color: "text-yellow" },
@@ -67,7 +65,7 @@ export default function HomeClient() {
   }, [loadNearby]);
 
   return (
-    <main className="relative mx-auto min-h-screen w-full max-w-[390px] overflow-hidden px-4 pb-24 pt-8">
+    <main className="relative mx-auto min-h-screen w-full max-w-[390px] overflow-hidden px-4 pb-10 pt-8">
       <div className="pointer-events-none absolute -left-24 -top-20 h-64 w-64 rounded-full bg-pink/20 blur-2xl" />
       <div className="pointer-events-none absolute -right-24 top-40 h-72 w-72 rounded-full bg-teal/20 blur-2xl" />
 
@@ -85,20 +83,7 @@ export default function HomeClient() {
       </header>
 
       <section>
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-          {genres.map((genre) => (
-            <button
-              key={genre}
-              type="button"
-              onClick={() => setActiveGenre(genre)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold ${
-                genre === activeGenre ? "bg-yellow text-navy" : "bg-white/10 text-white"
-              }`}
-            >
-              {genre}
-            </button>
-          ))}
-        </div>
+        <GenreChips activeGenre={activeGenre} onChange={setActiveGenre} />
 
         {error ? (
           <p className="mb-3 rounded-xl2 border border-pink/40 bg-pink/10 px-3 py-2 text-sm text-pink">{error}</p>
@@ -121,20 +106,6 @@ export default function HomeClient() {
       >
         グループを作る
       </Link>
-
-      <nav className="fixed bottom-0 left-0 right-0 mx-auto flex w-full max-w-[390px] justify-between rounded-t-xl4 border border-white/10 bg-navy/95 px-3 py-3">
-        {navItems.map((item, index) => (
-          <button
-            key={item}
-            type="button"
-            className={`rounded-xl2 px-2 py-2 text-xs font-bold ${
-              index === 0 ? "bg-white/15 text-yellow" : "text-slate-300"
-            }`}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
     </main>
   );
 }

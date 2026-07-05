@@ -20,6 +20,7 @@ export type PlaceCandidate = {
   lng?: number;
   vicinity?: string;
   photoName?: string;
+  genres?: string[];
 };
 
 export type SessionRecord = {

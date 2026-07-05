@@ -1,13 +1,13 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { GENRE_OPTIONS } from "@/lib/genres";
 import { saveMemberIdentity } from "@/lib/session-store";
 import { SessionConditions } from "@/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const stepLabels = ["条件入力", "候補取得", "招待", "投票開始"];
-const genreOptions = ["すべて", "ラーメン", "寿司", "バーガー", "ピザ", "居酒屋", "カレー", "焼肉", "イタリアン"];
 const transportOptions = [
   { id: "walk", label: "徒歩🚶" },
   { id: "bike", label: "自転車🚲" },
@@ -248,7 +248,7 @@ export default function NewSessionForm() {
       <section className="mb-4 rounded-xl4 bg-white/10 p-4">
         <h2 className="mb-3 text-lg font-extrabold text-teal">ジャンル選択</h2>
         <div className="flex flex-wrap gap-2">
-          {genreOptions.map((genre) => (
+          {GENRE_OPTIONS.map((genre) => (
             <button
               key={genre}
               type="button"

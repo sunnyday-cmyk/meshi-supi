@@ -1,6 +1,8 @@
 "use client";
 
 import VoteCard from "@/components/VoteCard";
+import GenreChips from "@/components/GenreChips";
+import { enrichPlacesWithGenres, placeMatchesGenre } from "@/lib/genres";
 import { enrichPlacesWithDistance, mapUrlFromPlace } from "@/lib/places";
 import { getMemberIdentity } from "@/lib/session-store";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -52,6 +54,7 @@ export default function VoteClient({ sessionId }: Props) {
   const [myPlaceId, setMyPlaceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultPlace, setResultPlace] = useState<PlaceCandidate | null>(null);
+  const [activeGenre, setActiveGenre] = useState("すべて");
 
   const identity = useMemo(() => getMemberIdentity(sessionId), [sessionId]);
   const isHost = Boolean(session && userId && session.host_id === userId);
@@ -85,7 +88,8 @@ export default function VoteClient({ sessionId }: Props) {
     const raw = row.candidates ?? [];
 
     const applyCandidates = async (list: PlaceCandidate[]) => {
-      const withPhotos = await enrichWithMissingPhotos(list);
+      const withGenres = enrichPlacesWithGenres(list);
+      const withPhotos = await enrichWithMissingPhotos(withGenres);
       setCandidates(withPhotos);
     };
 
@@ -179,6 +183,11 @@ export default function VoteClient({ sessionId }: Props) {
     return m;
   }, [tallies]);
 
+  const visibleCandidates = useMemo(
+    () => candidates.filter((p) => placeMatchesGenre(p, activeGenre)),
+    [candidates, activeGenre]
+  );
+
   const castVote = async (placeId: string) => {
     if (!identity) {
       setError("招待画面から参加してください。");
@@ -256,25 +265,35 @@ export default function VoteClient({ sessionId }: Props) {
         <h1 className="title-font text-3xl text-yellow">投票タイム！</h1>
         <p className="text-sm text-slate-200">
           タップで投票（変更OK）
-          {candidates.length > 0 ? ` ・ 全${candidates.length}店舗` : ""}
+          {candidates.length > 0
+            ? ` ・ ${visibleCandidates.length} / 全${candidates.length}店舗`
+            : ""}
         </p>
       </header>
+
+      <GenreChips activeGenre={activeGenre} onChange={setActiveGenre} className="mb-4" />
 
       {error ? (
         <p className="mb-3 rounded-xl2 border border-pink/40 bg-pink/10 px-3 py-2 text-sm text-pink">{error}</p>
       ) : null}
 
       <div className="space-y-4">
-        {candidates.map((place) => (
-          <VoteCard
-            key={place.placeId}
-            place={place}
-            selected={myPlaceId === place.placeId}
-            votes={tallies.get(place.placeId) ?? 0}
-            maxVotes={maxVotes || 1}
-            onSelect={() => void castVote(place.placeId)}
-          />
-        ))}
+        {visibleCandidates.length === 0 ? (
+          <p className="rounded-xl2 border border-white/10 bg-white/5 px-4 py-6 text-center text-sm text-slate-300">
+            このジャンルのお店はありません
+          </p>
+        ) : (
+          visibleCandidates.map((place) => (
+            <VoteCard
+              key={place.placeId}
+              place={place}
+              selected={myPlaceId === place.placeId}
+              votes={tallies.get(place.placeId) ?? 0}
+              maxVotes={maxVotes || 1}
+              onSelect={() => void castVote(place.placeId)}
+            />
+          ))
+        )}
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
