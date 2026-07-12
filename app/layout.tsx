@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MeshiSpin | みんなで楽しくお店を決めるグループ投票アプリ",
+  title: "飯スピ | MeshiSpin - グループでご飯をゲーム感覚で決めるアプリ",
   description:
-    "MeshiSpinは、友達や同僚と近くのレストランを探して投票・ルーレットで店を決められるWebアプリです。ジャンルや予算の条件設定、QR招待、リアルタイム投票に対応。",
+    "飯スピ（MeshiSpin）は友達グループでご飯の場所をルーレットや投票で楽しく決めるWebアプリです。",
+  keywords: "飯スピ, MeshiSpin, グループ, ご飯, 飯, 決める, ルーレット, 投票",
   verification: {
     google: "nYnsReuq__-1a0mO_P929c66GJcTQhweDfBfVPwEUYI"
   }
